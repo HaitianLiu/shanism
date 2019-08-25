@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
-import { Input, Button, Form, InputNumber } from 'antd';
+import { Input, Button, Form, InputNumber, Row, Col, Divider, message } from 'antd';
+import copy from 'copy-to-clipboard';
 import styles from './index.module.css';
 
 function Calculator() {
-  const [periodSalary, setPeriodSalary] = useState([]);
-  const [result, setResult] = useState(0);
-  const [isCalculating, setIsCalculating] = useState(false);
+  const DEFAULT_PERIOD = new Date().getMonth();
+  const DEFAULT_SALARY = 8748.11;
   let insurance = 655.33;
   let afterTaxSalary = 8000;
+  const [periodSalary, setPeriodSalary] = useState(Array.from({ length: DEFAULT_PERIOD - 1 }).fill(DEFAULT_SALARY));
+  const [result, setResult] = useState(0);
+  const [isCalculating, setIsCalculating] = useState(false);
+  const [resultPeriod, setResultPeriod] = useState(DEFAULT_PERIOD);
 
   const formItemLayout = {
     labelCol: {
@@ -35,20 +39,31 @@ function Calculator() {
   function renderPeriodInputs() {
     return periodSalary.map((salary, index) => {
       return (
-        <Form.Item label={`${index + 1}月`} key={index}>
-          <Input defaultValue={salary} onChange={e => salaryOnChange(e, index)} />
-        </Form.Item>
+        <Col xs={12} sm={8} key={index}>
+          <Form.Item label={`${index + 1}月`}>
+            <Input
+              defaultValue={salary}
+              onChange={e => salaryOnChange(e, index)}
+              onFocus={e => e.target.select()}
+              allowClear
+            />
+          </Form.Item>
+        </Col>
       );
     });
   }
 
   function periodOnChange(nextPeriod) {
+    if (nextPeriod > 12 || nextPeriod < 1) {
+      return;
+    }
     nextPeriod = Number(nextPeriod);
     const currPeriod = periodSalary.length + 1;
     let nextPeriodSalary = [];
 
     if (nextPeriod > currPeriod) {
-      nextPeriodSalary = [...periodSalary, ...Array.from({ length: nextPeriod - currPeriod }).fill(8748.11)];
+      const initSalary = periodSalary.length === 0 ? DEFAULT_SALARY : periodSalary[periodSalary.length - 1];
+      nextPeriodSalary = [...periodSalary, ...Array.from({ length: nextPeriod - currPeriod }).fill(initSalary)];
     } else {
       nextPeriodSalary = periodSalary.slice(0, nextPeriod - 1);
     }
@@ -56,11 +71,12 @@ function Calculator() {
   }
 
   function salaryOnChange(e, index) {
-    periodSalary[index] = e.target.value;
+    periodSalary[index] = Number(e.target.value);
   }
 
   function calculatePrevTax(periodSalary, insurance) {
     const rates = [0.03, 0.1, 0.2, 0.25, 0.3, 0.35, 0.45];
+    const deductions = [0, 2520, 16920, 31920, 52920, 85920, 181920];
     const range = [36000, 144000, 300000, 420000, 660000, 960000];
     const period = periodSalary.length;
     if (period === 0) {
@@ -81,7 +97,8 @@ function Calculator() {
     }
 
     const r = rates[index];
-    return Number(((p - b) * r).toFixed(2));
+    const d = deductions[index];
+    return Number(((p - b) * r - d).toFixed(2));
   }
 
   function calculateCostly(afterTaxSalary, periodSalary, insurance) {
@@ -115,6 +132,8 @@ function Calculator() {
 
     setResult(x);
 
+    setResultPeriod(periodSalary.length + 1);
+
     setIsCalculating(false);
   }
 
@@ -127,19 +146,43 @@ function Calculator() {
     return arr.reduce((a, b) => a + b, 0);
   }
 
+  function onCopy() {
+    copy(result);
+    message.success('复制成功');
+  }
+
   return (
     <div className={styles.app}>
       <Form {...formItemLayout} className={styles.form}>
-        <Form.Item label="税后工资：">
-          <Input defaultValue={afterTaxSalary} onChange={e => (afterTaxSalary = Number(e.target.value))} />
+        <Form.Item label={`${periodSalary.length + 1}月税后工资：`} wrapperCol={{ sm: 6 }}>
+          <Input
+            defaultValue={afterTaxSalary}
+            onChange={e => (afterTaxSalary = Number(e.target.value))}
+            onFocus={e => e.target.select()}
+            allowClear
+          />
         </Form.Item>
-        <Form.Item label="期数：">
-          <InputNumber min={1} max={12} defaultValue={1} onChange={periodOnChange} />
+        <Form.Item label="期数：" wrapperCol={{ sm: 6 }}>
+          <InputNumber
+            min={1}
+            max={12}
+            defaultValue={DEFAULT_PERIOD}
+            onChange={periodOnChange}
+            onFocus={e => e.target.select()}
+          />
         </Form.Item>
-        <Form.Item label="各项社会保险费：">
-          <Input defaultValue={insurance} onChange={e => (insurance = Number(e.target.value))} />
+        <Form.Item label="各项社会保险费：" wrapperCol={{ sm: 6 }}>
+          <Input
+            defaultValue={insurance}
+            onChange={e => (insurance = Number(e.target.value))}
+            onFocus={e => e.target.select()}
+            allowClear
+          />
         </Form.Item>
-        {renderPeriodInputs()}
+        <Divider dashed={true} />
+        <Row type="flex" justify="start">
+          {renderPeriodInputs()}
+        </Row>
         <Form.Item {...tailFormItemLayout}>
           <Button
             type="primary"
@@ -150,8 +193,11 @@ function Calculator() {
           </Button>
         </Form.Item>
         {!!result && (
-          <Form.Item label="本月税前工资：" {...formItemLayout}>
+          <Form.Item label={`${resultPeriod}月税前工资：`} {...formItemLayout}>
             <span>{result}</span>
+            <Button type="link" onClick={onCopy}>
+              复制
+            </Button>
           </Form.Item>
         )}
       </Form>
